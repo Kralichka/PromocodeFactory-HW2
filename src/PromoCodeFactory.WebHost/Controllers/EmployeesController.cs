@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using PromoCodeFactory.Core.Abstractions.Repositories;
 using PromoCodeFactory.Core.Domain.Administration;
@@ -42,7 +45,6 @@ namespace PromoCodeFactory.WebHost.Controllers
 
             return employeesModelList;
         }
-
         /// <summary>
         /// Получить данные сотрудника по Id
         /// </summary>
@@ -69,6 +71,80 @@ namespace PromoCodeFactory.WebHost.Controllers
             };
 
             return employeeModel;
+        }
+
+        /// <summary>
+        /// Добавить нового сотрудника
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost]
+        public async Task<ActionResult<EmployeeResponse>> CreateEmployeeByIdAsync(EmployeeCreateModel employee)
+        {
+            try
+            {
+                if (employee == null)
+                {
+                    return BadRequest();
+                }
+
+                var createdEmployee = await _employeeRepository.CreateNewAsync(new Employee
+                {
+                    Id = new Guid(),
+                    FirstName = employee.FirstName,
+                    LastName = employee.LastName,
+                    Email = employee.Email,
+                    AppliedPromocodesCount = employee.AppliedPromocodesCount,
+                    Roles = employee.Roles.Select(s => new Role
+                    {
+                        Id = new Guid(),
+                        Name = s.Name,
+                        Description = s.Description
+                    }).ToList(),
+                });
+
+
+                return this.Ok(createdEmployee);
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    "Ошибка при создании работника");
+            }
+        }
+        /// <summary>
+        /// Обновить данные о сотруднике по Id
+        /// </summary>
+        /// <returns></returns>
+        [HttpPut("{id:guid}")]
+        public async Task<ActionResult> UpdateEmployeeByIdAsync(Guid id, EmployeeUpdateModel employee)
+        {
+            var oldEmployee = await _employeeRepository.GetByIdAsync(id);
+
+            if (oldEmployee == null)
+                return NotFound();
+
+            var updatedEmployee = new Employee() { 
+                Id = id, 
+                FirstName = employee.FirstName, 
+                LastName = employee.LastName, 
+                Roles = oldEmployee.Roles, 
+                Email = employee.Email, 
+                AppliedPromocodesCount = employee.AppliedPromocodesCount};
+
+
+            var employeeModel = _employeeRepository.UpdateEmployeeAsync(updatedEmployee);
+
+            return Ok(employeeModel);
+        }
+
+        /// <summary>
+        /// Удалить данные о сотруднике по Id
+        /// </summary>
+        /// <returns></returns>
+        [HttpDelete("{id:guid}")]
+        public async Task<ActionResult<Employee>> DeleteEmployeeByIdAsync(Guid id)
+        {
+            return await this._employeeRepository.DeleteByIdAsync(id) ? this.Ok(id) : this.BadRequest(id);
         }
     }
 }
